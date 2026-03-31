@@ -625,7 +625,7 @@ def client_new():
     <a href="/dashboard/clients" class="back-link">&larr; 返回客戶列表</a>
     <div class="card">
       <div class="card-title" style="margin-bottom:16px">新增客戶</div>
-      <form method="POST">
+      <form method="POST" accept-charset="UTF-8">
         <div class="sec-title">基本資訊</div>
         <div class="form-row">
           <div class="form-group"><label>品牌名稱 *</label><input name="brand_name" required></div>
@@ -737,7 +737,7 @@ def client_detail(client_id):
     </div>
 
     <div class="card">
-      <form method="POST">
+      <form method="POST" accept-charset="UTF-8">
         <div class="sec-title">基本資訊</div>
         <div class="form-row">
           <div class="form-group"><label>品牌名稱</label><input name="brand_name" value="{c.get('brand_name','')}"></div>
@@ -932,7 +932,7 @@ def template_new():
     <a href="/dashboard/templates" class="back-link">&larr; 返回模板庫</a>
     <div class="card">
       <div class="card-title" style="margin-bottom:16px">新增模板</div>
-      <form method="POST">
+      <form method="POST" accept-charset="UTF-8">
         <div class="form-row">
           <div class="form-group"><label>模板名稱 *</label><input name="name" required></div>
           <div class="form-group"><label>產業類別</label><select name="industry">{industry_options}</select></div>
@@ -981,7 +981,7 @@ def template_detail(template_id):
       <button class="btn btn-danger btn-sm" onclick="deleteTemplate()">刪除模板</button>
     </div>
     <div class="card">
-      <form method="POST">
+      <form method="POST" accept-charset="UTF-8">
         <div class="form-row">
           <div class="form-group"><label>模板名稱</label><input name="name" value="{t.get('name','')}"></div>
           <div class="form-group"><label>產業類別</label><select name="industry">{industry_options}</select></div>
@@ -1017,6 +1017,36 @@ def template_delete(template_id):
 # ==========================================
 # API 路由
 # ==========================================
+
+@app.route("/api/clients", methods=["POST"])
+def api_client_create():
+    if not is_authenticated():
+        return jsonify({"error": "unauthorized"}), 401
+    data = request.get_json()
+    client = {
+        "id": str(uuid.uuid4()),
+        "brand_name": data.get("brand_name", ""),
+        "industry": data.get("industry", "other"),
+        "bot_url": data.get("bot_url", ""),
+        "admin_url": data.get("admin_url", ""),
+        "admin_password": data.get("admin_password", ""),
+        "railway_project_id": data.get("railway_project_id", ""),
+        "contact_person": data.get("contact_person", ""),
+        "contact_phone": data.get("contact_phone", ""),
+        "boss_user_id": data.get("boss_user_id", ""),
+        "line_token_hint": data.get("line_token_hint", ""),
+        "deploy_date": data.get("deploy_date", date.today().isoformat()),
+        "notes": data.get("notes", ""),
+        "status": "active",
+        "last_health_check": "",
+        "last_health_ok": False,
+        "billing": data.get("billing", {"plan": "standard", "monthly_fee": 0, "start_date": "", "expiry_date": "", "payment_status": "trial", "payment_notes": ""}),
+        "created_at": datetime.now().isoformat(),
+        "updated_at": datetime.now().isoformat()
+    }
+    save_client(client)
+    return jsonify({"status": "ok", "id": client["id"]})
+
 
 @app.route("/api/health-check", methods=["POST"])
 def api_health_check():
