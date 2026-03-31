@@ -580,42 +580,10 @@ def clients_list():
     return resp
 
 
-@app.route("/dashboard/clients/new", methods=["GET", "POST"])
+@app.route("/dashboard/clients/new", methods=["GET"])
 def client_new():
     if not is_authenticated():
         return redirect("/login")
-
-    if request.method == "POST":
-        client = {
-            "id": str(uuid.uuid4()),
-            "brand_name": request.form.get("brand_name", "").strip(),
-            "industry": request.form.get("industry", "other"),
-            "bot_url": request.form.get("bot_url", "").strip(),
-            "admin_url": request.form.get("admin_url", "").strip(),
-            "admin_password": request.form.get("admin_password", "").strip(),
-            "railway_project_id": request.form.get("railway_project_id", "").strip(),
-            "contact_person": request.form.get("contact_person", "").strip(),
-            "contact_phone": request.form.get("contact_phone", "").strip(),
-            "boss_user_id": request.form.get("boss_user_id", "").strip(),
-            "line_token_hint": request.form.get("line_token_hint", "").strip(),
-            "deploy_date": request.form.get("deploy_date", date.today().isoformat()),
-            "notes": request.form.get("notes", "").strip(),
-            "status": "active",
-            "last_health_check": "",
-            "last_health_ok": False,
-            "billing": {
-                "plan": request.form.get("plan", "standard"),
-                "monthly_fee": int(request.form.get("monthly_fee", 0) or 0),
-                "start_date": request.form.get("billing_start", date.today().isoformat()),
-                "expiry_date": request.form.get("billing_expiry", ""),
-                "payment_status": request.form.get("payment_status", "pending"),
-                "payment_notes": ""
-            },
-            "created_at": datetime.now().isoformat(),
-            "updated_at": datetime.now().isoformat()
-        }
-        save_client(client)
-        return redirect(f"/dashboard/clients/{client['id']}")
 
     industry_options = "".join(f'<option value="{k}">{v}</option>' for k, v in INDUSTRY_LABELS.items())
     plan_options = "".join(f'<option value="{k}">{v}</option>' for k, v in PLAN_LABELS.items())
@@ -663,47 +631,35 @@ def client_new():
         <div class="form-group"><label>付款狀態</label><select name="payment_status">{payment_options}</select></div>
 
         <div class="form-group"><label>備註</label><textarea name="notes" rows="3"></textarea></div>
-        <button type="submit" class="btn btn-primary">儲存客戶</button>
+        <button type="button" class="btn btn-primary" onclick="submitClient()">儲存客戶</button>
       </form>
     </div>
     """
-    html = render_page("新增客戶", "clients", content)
+    js = """
+function submitClient(){
+  const f=document.querySelector('form');
+  const d={};
+  new FormData(f).forEach((v,k)=>d[k]=v);
+  d.billing={plan:d.plan,monthly_fee:parseInt(d.monthly_fee)||0,start_date:d.billing_start||'',expiry_date:d.billing_expiry||'',payment_status:d.payment_status||'pending',payment_notes:''};
+  delete d.plan;delete d.monthly_fee;delete d.billing_start;delete d.billing_expiry;delete d.payment_status;
+  fetch('/api/clients',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})
+  .then(r=>r.json()).then(r=>{if(r.id)location.href='/dashboard/clients/'+r.id;else showToast('儲存失敗');})
+  .catch(()=>showToast('儲存失敗'));
+}
+"""
+    html = render_page("新增客戶", "clients", content, js)
     resp = make_response(html)
     resp.headers['Content-Type'] = 'text/html; charset=utf-8'
     return resp
 
 
-@app.route("/dashboard/clients/<client_id>", methods=["GET", "POST"])
+@app.route("/dashboard/clients/<client_id>", methods=["GET"])
 def client_detail(client_id):
     if not is_authenticated():
         return redirect("/login")
     client = get_client(client_id)
     if not client:
         return redirect("/dashboard/clients")
-
-    if request.method == "POST":
-        client["brand_name"] = request.form.get("brand_name", client["brand_name"]).strip()
-        client["industry"] = request.form.get("industry", client.get("industry", "other"))
-        client["bot_url"] = request.form.get("bot_url", "").strip()
-        client["admin_url"] = request.form.get("admin_url", "").strip()
-        client["admin_password"] = request.form.get("admin_password", "").strip()
-        client["railway_project_id"] = request.form.get("railway_project_id", "").strip()
-        client["contact_person"] = request.form.get("contact_person", "").strip()
-        client["contact_phone"] = request.form.get("contact_phone", "").strip()
-        client["boss_user_id"] = request.form.get("boss_user_id", "").strip()
-        client["line_token_hint"] = request.form.get("line_token_hint", "").strip()
-        client["deploy_date"] = request.form.get("deploy_date", client.get("deploy_date", ""))
-        client["notes"] = request.form.get("notes", "").strip()
-        client["billing"] = {
-            "plan": request.form.get("plan", "standard"),
-            "monthly_fee": int(request.form.get("monthly_fee", 0) or 0),
-            "start_date": request.form.get("billing_start", ""),
-            "expiry_date": request.form.get("billing_expiry", ""),
-            "payment_status": request.form.get("payment_status", "pending"),
-            "payment_notes": request.form.get("payment_notes", "")
-        }
-        save_client(client)
-        return redirect(f"/dashboard/clients/{client_id}")
 
     c = client
     billing = c.get("billing", {})
@@ -778,12 +734,22 @@ def client_detail(client_id):
         </div>
 
         <div class="form-group"><label>備註</label><textarea name="notes" rows="3">{c.get('notes','')}</textarea></div>
-        <button type="submit" class="btn btn-primary">更新資料</button>
+        <button type="button" class="btn btn-primary" onclick="updateClient()">更新資料</button>
       </form>
     </div>
     """
 
     js = f"""
+function updateClient(){{
+  const f=document.querySelector('form');
+  const d={{}};
+  new FormData(f).forEach((v,k)=>d[k]=v);
+  d.billing={{plan:d.plan,monthly_fee:parseInt(d.monthly_fee)||0,start_date:d.billing_start||'',expiry_date:d.billing_expiry||'',payment_status:d.payment_status||'pending',payment_notes:d.payment_notes||''}};
+  delete d.plan;delete d.monthly_fee;delete d.billing_start;delete d.billing_expiry;delete d.payment_status;delete d.payment_notes;
+  fetch('/api/clients/{client_id}',{{method:'PUT',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(d)}})
+  .then(r=>r.json()).then(r=>{{if(r.status==='ok'){{showToast('已更新');setTimeout(()=>location.reload(),1000)}}else showToast('更新失敗')}})
+  .catch(()=>showToast('更新失敗'));
+}}
 function checkThis(){{
   showToast('正在檢查...');
   fetch('/api/health-check',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{id:'{client_id}'}})}}
@@ -1046,6 +1012,25 @@ def api_client_create():
     }
     save_client(client)
     return jsonify({"status": "ok", "id": client["id"]})
+
+
+@app.route("/api/clients/<client_id>", methods=["PUT"])
+def api_client_update(client_id):
+    if not is_authenticated():
+        return jsonify({"error": "unauthorized"}), 401
+    client = get_client(client_id)
+    if not client:
+        return jsonify({"error": "not found"}), 404
+    data = request.get_json()
+    for key in ["brand_name", "industry", "bot_url", "admin_url", "admin_password",
+                "railway_project_id", "contact_person", "contact_phone", "boss_user_id",
+                "line_token_hint", "deploy_date", "notes"]:
+        if key in data:
+            client[key] = data[key]
+    if "billing" in data:
+        client["billing"] = data["billing"]
+    save_client(client)
+    return jsonify({"status": "ok"})
 
 
 @app.route("/api/health-check", methods=["POST"])
